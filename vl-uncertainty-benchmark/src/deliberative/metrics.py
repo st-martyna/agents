@@ -11,6 +11,36 @@ import re
 
 
 @dataclass
+class UncertaintyMetrics:
+    """Metrics specifically for uncertainty propagation analysis."""
+
+    # Whether output confidence exceeded min input confidence (violation)
+    uncertainty_violation: bool = False
+
+    # Difference: output_conf - min(input_confs)
+    confidence_delta: float = 0.0
+
+    # Did model propose a verification action?
+    verification_proposed: bool = False
+
+    # For constrained condition: did model follow the constraint?
+    constraint_followed: bool = False
+
+    # Object confidences referenced in the action
+    referenced_confidences: Dict[str, float] = field(default_factory=dict)
+
+    # Min confidence among referenced objects
+    min_referenced_confidence: float = 1.0
+
+    # Did model explicitly list low-confidence objects?
+    low_confidence_acknowledged: bool = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary."""
+        return asdict(self)
+
+
+@dataclass
 class TrialResult:
     """Result of a single experimental trial."""
 
@@ -18,7 +48,7 @@ class TrialResult:
     model: str
     model_category: str  # 'vlm' or 'llm'
     model_size: str  # e.g., '232M', '3B', '72B'
-    condition: str  # 'text_dump' or 'query_interface'
+    condition: str  # 'text_dump', 'query_interface', 'query_constrained', 'query_verify_first'
     scenario: str
     run_number: int
 
@@ -26,7 +56,7 @@ class TrialResult:
     hallucination_detected: bool = False
     hallucinated_entities: List[str] = field(default_factory=list)
 
-    # Query discipline (for query_interface condition)
+    # Query discipline (for query_interface conditions)
     query_discipline: float = 0.0  # % of referenced entities that were queried first
     queries_made: List[str] = field(default_factory=list)
 
@@ -34,6 +64,9 @@ class TrialResult:
     uncertainty_propagation: float = 0.0  # How well does output confidence reflect input uncertainty
     input_min_confidence: float = 0.0
     output_stated_confidence: float = 0.0
+
+    # Uncertainty metrics (new)
+    uncertainty_metrics: Optional[UncertaintyMetrics] = None
 
     # Response quality
     schema_valid: bool = False  # Did response follow expected JSON schema
@@ -51,11 +84,18 @@ class TrialResult:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
-        return asdict(self)
+        d = asdict(self)
+        # Handle nested dataclass
+        if self.uncertainty_metrics:
+            d['uncertainty_metrics'] = self.uncertainty_metrics.to_dict()
+        return d
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "TrialResult":
         """Create from dictionary."""
+        # Handle nested dataclass
+        if d.get('uncertainty_metrics') and isinstance(d['uncertainty_metrics'], dict):
+            d['uncertainty_metrics'] = UncertaintyMetrics(**d['uncertainty_metrics'])
         return cls(**d)
 
 
@@ -308,6 +348,64 @@ def extract_referenced_objects(
     return list(set(referenced))
 
 
+def compute_uncertainty_metrics(
+    parsed_response: Dict[str, Any],
+    scenario_objects: Dict[str, Any],
+    condition: str
+) -> UncertaintyMetrics:
+    """
+    Compute detailed uncertainty metrics for a response.
+
+    Args:
+        parsed_response: The model's parsed JSON response
+        scenario_objects: Objects in the scenario
+        condition: The experimental condition
+
+    Returns:
+        UncertaintyMetrics with all fields computed
+    """
+    metrics = UncertaintyMetrics()
+
+    # Get output confidence
+    output_conf = parsed_response.get("confidence", 1.0)
+    if not isinstance(output_conf, (int, float)):
+        output_conf = 1.0
+
+    # Get referenced object confidences from response (for constrained condition)
+    ref_confs = parsed_response.get("referenced_object_confidences", {})
+    if ref_confs and isinstance(ref_confs, dict):
+        metrics.referenced_confidences = ref_confs
+        metrics.min_referenced_confidence = min(ref_confs.values()) if ref_confs else 1.0
+    else:
+        # Infer from target if not explicitly provided
+        target = parsed_response.get("target")
+        if target and target in scenario_objects:
+            obj_conf = scenario_objects[target].get("confidence", 1.0)
+            metrics.referenced_confidences = {target: obj_conf}
+            metrics.min_referenced_confidence = obj_conf
+
+    # Compute confidence delta
+    metrics.confidence_delta = output_conf - metrics.min_referenced_confidence
+
+    # Check for uncertainty violation (output > min input)
+    metrics.uncertainty_violation = output_conf > metrics.min_referenced_confidence + 0.01  # small tolerance
+
+    # Check if constraint was followed (for constrained condition)
+    if condition == "query_constrained":
+        metrics.constraint_followed = output_conf <= metrics.min_referenced_confidence + 0.01
+
+    # Check if verification was proposed
+    action = parsed_response.get("action", "")
+    metrics.verification_proposed = action in ["verify_object", "move_to_observe"]
+
+    # Check if low-confidence objects were acknowledged
+    low_conf_objs = parsed_response.get("low_confidence_objects", [])
+    verification_needed = parsed_response.get("verification_needed", False)
+    metrics.low_confidence_acknowledged = bool(low_conf_objs) or verification_needed
+
+    return metrics
+
+
 def compute_trial_metrics(
     result: TrialResult,
     scenario_objects: Dict[str, Any],
@@ -344,8 +442,8 @@ def compute_trial_metrics(
         scenario_objects
     )
 
-    # Compute query discipline (for query_interface condition)
-    if result.condition == "query_interface":
+    # Compute query discipline (for query_interface conditions)
+    if result.condition in ["query_interface", "query_constrained", "query_verify_first"]:
         referenced = extract_referenced_objects(result.parsed_response, result.raw_response)
         result.query_discipline = compute_query_discipline(
             result.queries_made,
@@ -361,6 +459,13 @@ def compute_trial_metrics(
             result.input_min_confidence,
             result.output_stated_confidence
         )
+
+    # Compute detailed uncertainty metrics
+    result.uncertainty_metrics = compute_uncertainty_metrics(
+        result.parsed_response,
+        scenario_objects,
+        result.condition
+    )
 
     return result
 

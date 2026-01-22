@@ -259,16 +259,237 @@ Begin!
 Thought:"""
 
 
+# =============================================================================
+# CONDITION C: QUERY INTERFACE WITH UNCERTAINTY CONSTRAINTS
+# =============================================================================
+
+QUERY_CONSTRAINED_SYSTEM_PROMPT = """You are a robot's deliberative reasoning system. You have access to tools to query the scene state.
+
+IMPORTANT: You must use the tools to discover what objects exist in the scene. Do not assume or invent objects.
+
+CRITICAL UNCERTAINTY RULES:
+- Your output confidence MUST be ≤ min(confidence of all objects referenced in your action)
+- If the object you're acting on has confidence 0.25, your action confidence cannot exceed 0.25
+- If you're uncertain whether an object exists, you have three options:
+  a) Propose the action with appropriately LOW confidence (≤ object confidence)
+  b) Propose a verification action first
+  c) Return cannot_solve with reason "perception_uncertainty_too_high"
+- Confidence is not about whether the action WOULD work if the object exists - it's about whether the object EXISTS to act upon
+
+Your goal is to determine the best action to improve perception confidence for color classification, or recognize when it's impossible."""
+
+
+QUERY_CONSTRAINED_USER_PROMPT = """{problem_statement}
+
+You have access to the following tools to query the scene:
+
+1. find_objects(type: str) -> List[{{id, type, confidence}}]
+   Find all objects of a given type. Types: "light_source", "pill", "bin", "surface"
+
+2. get_object_details(id: str) -> {{full object properties}} or null
+   Get detailed properties of a specific object by ID
+
+3. check_reachable(id: str) -> bool
+   Check if an object is reachable by the robot
+
+4. get_affecting_factors(property: str) -> List[str]
+   Get factors that affect a property. E.g., "color_classification" -> ["lighting", "distance"]
+
+5. estimate_effect(action_type: str, target_id: str, property: str) -> {{delta: float, confidence: float}}
+   Estimate the effect of an action on a property
+
+Use these tools to explore the scene, then provide your decision as JSON:
+{{
+    "reasoning": "your step-by-step reasoning",
+    "action": "move_to" or "cannot_solve",
+    "target": "object_id if move_to, null otherwise",
+    "reason": "reason if cannot_solve, null otherwise",
+    "referenced_object_confidences": {{"object_id": confidence, ...}},
+    "confidence": float  // MUST BE ≤ min(referenced_object_confidences)
+}}"""
+
+
+# =============================================================================
+# CONDITION D: QUERY INTERFACE WITH VERIFY-FIRST PROTOCOL
+# =============================================================================
+
+QUERY_VERIFY_FIRST_SYSTEM_PROMPT = """You are a robot's deliberative reasoning system. You have access to tools to query the scene state.
+
+IMPORTANT: You must use the tools to discover what objects exist in the scene. Do not assume or invent objects.
+
+UNCERTAINTY HANDLING PROTOCOL:
+When perception confidence for a critical object is below 0.5:
+1. DO NOT immediately plan actions assuming the object exists
+2. First propose a VERIFICATION action to confirm the object
+3. Only after verification succeeds, plan the main action
+
+If verification is not possible or would not help, return cannot_solve.
+
+Your response should be EITHER:
+A) A verification action (if critical objects have confidence < 0.5)
+B) A task action (if all critical objects have confidence ≥ 0.5)
+C) cannot_solve
+
+Your goal is to determine the best action to improve perception confidence for color classification, or recognize when it's impossible."""
+
+
+QUERY_VERIFY_FIRST_USER_PROMPT = """{problem_statement}
+
+You have access to the following tools to query the scene:
+
+1. find_objects(type: str) -> List[{{id, type, confidence}}]
+   Find all objects of a given type. Types: "light_source", "pill", "bin", "surface"
+
+2. get_object_details(id: str) -> {{full object properties}} or null
+   Get detailed properties of a specific object by ID
+
+3. check_reachable(id: str) -> bool
+   Check if an object is reachable by the robot
+
+4. get_affecting_factors(property: str) -> List[str]
+   Get factors that affect a property
+
+5. estimate_effect(action_type: str, target_id: str, property: str) -> {{delta: float, confidence: float}}
+   Estimate the effect of an action on a property
+
+6. verify_object(id: str) -> {{exists: bool, updated_confidence: float}}
+   Attempt to verify if an object actually exists (moves closer, takes more measurements)
+
+7. move_to_observe(id: str) -> {{new_confidence: float, details: dict}}
+   Move closer to an object to get better perception
+
+Use these tools to explore the scene, then provide your decision as JSON:
+{{
+    "reasoning": "your step-by-step reasoning",
+    "action": "move_to" or "verify_object" or "move_to_observe" or "cannot_solve",
+    "target": "object_id if applicable, null otherwise",
+    "reason": "reason if cannot_solve, null otherwise",
+    "confidence": 0.0-1.0 (your confidence in this decision),
+    "verification_needed": true/false,
+    "low_confidence_objects": ["list of objects with confidence < 0.5"]
+}}"""
+
+
+# Extended tools for constrained and verify-first conditions
+CLAUDE_TOOLS_EXTENDED = CLAUDE_TOOLS + [
+    {
+        "name": "verify_object",
+        "description": "Attempt to verify if an object actually exists by taking additional measurements. Use this when object detection confidence is low.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "The unique identifier of the object to verify"
+                }
+            },
+            "required": ["id"]
+        }
+    },
+    {
+        "name": "move_to_observe",
+        "description": "Move closer to an object to get better perception and updated confidence. Returns new confidence and details.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "The unique identifier of the object to observe more closely"
+                }
+            },
+            "required": ["id"]
+        }
+    }
+]
+
+
+# ReAct-style prompts for constrained conditions
+REACT_CONSTRAINED_PROMPT = """{problem_statement}
+
+CRITICAL UNCERTAINTY RULES:
+- Your output confidence MUST be ≤ min(confidence of all objects referenced in your action)
+- If the object you're acting on has confidence 0.25, your action confidence cannot exceed 0.25
+- Confidence is about whether the object EXISTS, not whether the action would work
+
+Tools:
+- find_objects(type): Find all objects of a given type. Types: "light_source", "pill", "bin", "surface"
+- get_object_details(id): Get detailed properties of an object
+- check_reachable(id): Check if an object is reachable
+- get_affecting_factors(property): Get factors affecting a property
+- estimate_effect(action_type, target_id, property): Estimate effect of an action
+
+Use the following format:
+
+Thought: I need to think about what to do
+Action: tool_name(arg1, arg2, ...)
+Observation: [result will be provided]
+... (repeat Thought/Action/Observation as needed)
+Thought: I now have enough information to decide
+Final Answer: {{
+    "reasoning": "your reasoning",
+    "action": "move_to" or "cannot_solve",
+    "target": "object_id or null",
+    "reason": "reason or null",
+    "referenced_object_confidences": {{"object_id": confidence}},
+    "confidence": float  // MUST BE ≤ min(referenced_object_confidences)
+}}
+
+Begin!
+
+Thought:"""
+
+
+REACT_VERIFY_FIRST_PROMPT = """{problem_statement}
+
+UNCERTAINTY HANDLING PROTOCOL:
+When perception confidence for a critical object is below 0.5:
+1. DO NOT immediately plan actions assuming the object exists
+2. First propose a VERIFICATION action to confirm the object
+3. Only after verification succeeds, plan the main action
+
+Tools:
+- find_objects(type): Find all objects of a given type
+- get_object_details(id): Get detailed properties of an object
+- check_reachable(id): Check if an object is reachable
+- get_affecting_factors(property): Get factors affecting a property
+- estimate_effect(action_type, target_id, property): Estimate effect of an action
+- verify_object(id): Verify if an object exists (returns {{exists, updated_confidence}})
+- move_to_observe(id): Move closer for better perception (returns {{new_confidence, details}})
+
+Use the following format:
+
+Thought: I need to think about what to do
+Action: tool_name(arg1, arg2, ...)
+Observation: [result will be provided]
+... (repeat Thought/Action/Observation as needed)
+Thought: I now have enough information to decide
+Final Answer: {{
+    "reasoning": "your reasoning",
+    "action": "move_to" or "verify_object" or "move_to_observe" or "cannot_solve",
+    "target": "object_id or null",
+    "reason": "reason or null",
+    "confidence": 0.0-1.0,
+    "verification_needed": true/false,
+    "low_confidence_objects": ["list of object_ids"]
+}}
+
+Begin!
+
+Thought:"""
+
+
 def create_query_interface_prompt(
     scenario: Scenario,
-    use_react: bool = False
+    use_react: bool = False,
+    condition: str = "query_interface"
 ) -> Dict[str, Any]:
     """
-    Create prompts for Condition B (query interface).
+    Create prompts for query interface conditions.
 
     Args:
         scenario: The scenario to create prompts for
         use_react: Whether to use ReAct-style (for local models) vs native tools
+        condition: One of "query_interface", "query_constrained", "query_verify_first"
 
     Returns:
         Dictionary with 'system', 'user', and optionally 'tools' keys
@@ -277,18 +498,45 @@ def create_query_interface_prompt(
         color_confidence=scenario.color_classification_confidence
     )
 
-    if use_react:
-        return {
-            "system": QUERY_INTERFACE_SYSTEM_PROMPT,
-            "user": REACT_STYLE_PROMPT.format(problem_statement=problem),
-            "tools": None
-        }
-    else:
-        return {
-            "system": QUERY_INTERFACE_SYSTEM_PROMPT,
-            "user": QUERY_INTERFACE_USER_PROMPT.format(problem_statement=problem),
-            "tools": CLAUDE_TOOLS
-        }
+    if condition == "query_constrained":
+        if use_react:
+            return {
+                "system": QUERY_CONSTRAINED_SYSTEM_PROMPT,
+                "user": REACT_CONSTRAINED_PROMPT.format(problem_statement=problem),
+                "tools": None
+            }
+        else:
+            return {
+                "system": QUERY_CONSTRAINED_SYSTEM_PROMPT,
+                "user": QUERY_CONSTRAINED_USER_PROMPT.format(problem_statement=problem),
+                "tools": CLAUDE_TOOLS
+            }
+    elif condition == "query_verify_first":
+        if use_react:
+            return {
+                "system": QUERY_VERIFY_FIRST_SYSTEM_PROMPT,
+                "user": REACT_VERIFY_FIRST_PROMPT.format(problem_statement=problem),
+                "tools": None
+            }
+        else:
+            return {
+                "system": QUERY_VERIFY_FIRST_SYSTEM_PROMPT,
+                "user": QUERY_VERIFY_FIRST_USER_PROMPT.format(problem_statement=problem),
+                "tools": CLAUDE_TOOLS_EXTENDED
+            }
+    else:  # Default: query_interface
+        if use_react:
+            return {
+                "system": QUERY_INTERFACE_SYSTEM_PROMPT,
+                "user": REACT_STYLE_PROMPT.format(problem_statement=problem),
+                "tools": None
+            }
+        else:
+            return {
+                "system": QUERY_INTERFACE_SYSTEM_PROMPT,
+                "user": QUERY_INTERFACE_USER_PROMPT.format(problem_statement=problem),
+                "tools": CLAUDE_TOOLS
+            }
 
 
 # =============================================================================

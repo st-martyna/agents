@@ -197,6 +197,77 @@ class SceneToolkit:
         }, result)
         return result
 
+    def verify_object(self, id: str) -> Dict[str, Any]:
+        """
+        Attempt to verify if an object actually exists.
+
+        Simulates taking additional measurements to confirm object existence.
+        For low-confidence objects, this may update the confidence.
+
+        Args:
+            id: Object identifier
+
+        Returns:
+            Dict with "exists" (bool) and "updated_confidence" (float)
+        """
+        if id not in self.scenario.objects:
+            result = {"exists": False, "updated_confidence": 0.0}
+        else:
+            obj = self.scenario.objects[id]
+            original_conf = obj.get("confidence", 0.5)
+
+            # Verification improves confidence slightly but can't exceed 0.9
+            # If object is real (exists in scenario), verification helps
+            # Simulate that verification adds +0.2 to confidence, capped at 0.9
+            updated_conf = min(0.9, original_conf + 0.2)
+
+            result = {
+                "exists": True,
+                "updated_confidence": updated_conf,
+                "original_confidence": original_conf
+            }
+
+        self._record_call("verify_object", {"id": id}, result)
+        return result
+
+    def move_to_observe(self, id: str) -> Dict[str, Any]:
+        """
+        Move closer to an object for better perception.
+
+        Simulates moving the robot closer to get a better view and
+        updated detection confidence.
+
+        Args:
+            id: Object identifier
+
+        Returns:
+            Dict with "new_confidence" (float) and "details" (dict)
+        """
+        if id not in self.scenario.objects:
+            result = {
+                "success": False,
+                "new_confidence": 0.0,
+                "details": None,
+                "error": "Object not found"
+            }
+        else:
+            obj = self.scenario.objects[id]
+            original_conf = obj.get("confidence", 0.5)
+
+            # Moving closer significantly improves confidence
+            # Simulate +0.3 boost, capped at 0.95
+            new_conf = min(0.95, original_conf + 0.3)
+
+            result = {
+                "success": True,
+                "new_confidence": new_conf,
+                "original_confidence": original_conf,
+                "details": {"id": id, **obj, "confidence": new_conf}
+            }
+
+        self._record_call("move_to_observe", {"id": id}, result)
+        return result
+
     def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
         """
         Execute a tool by name.
@@ -214,6 +285,8 @@ class SceneToolkit:
             "check_reachable": self.check_reachable,
             "get_affecting_factors": self.get_affecting_factors,
             "estimate_effect": self.estimate_effect,
+            "verify_object": self.verify_object,
+            "move_to_observe": self.move_to_observe,
         }
 
         if tool_name not in tool_map:
@@ -287,6 +360,8 @@ def parse_react_tool_call(action_str: str) -> tuple:
             "get_object_details": "id",
             "check_reachable": "id",
             "get_affecting_factors": "property",
+            "verify_object": "id",
+            "move_to_observe": "id",
         }
         if tool_name in first_arg_map:
             args[first_arg_map[tool_name]] = value

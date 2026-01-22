@@ -29,7 +29,9 @@ from src.deliberative import (
     create_text_dump_prompt,
     create_query_interface_prompt,
     CLAUDE_TOOLS,
+    CLAUDE_TOOLS_EXTENDED,
     TrialResult,
+    UncertaintyMetrics,
     evaluate_trial,
     generate_report,
     create_scene_image,
@@ -50,6 +52,7 @@ MODEL_CONFIGS = {
         "class": ClaudeWrapper,
         "kwargs": {"model_name": "claude-sonnet-4-20250514"},
         "category": "llm",
+        "tier": "cloud",
     },
     "qwen-7b-instruct": {
         "class": QwenInstructWrapper,
@@ -59,6 +62,7 @@ MODEL_CONFIGS = {
             "quantization": "4bit",
         },
         "category": "llm",
+        "tier": "edge",
     },
     "qwen-3b-instruct": {
         "class": QwenInstructWrapper,
@@ -68,8 +72,19 @@ MODEL_CONFIGS = {
             "quantization": "4bit",
         },
         "category": "llm",
+        "tier": "edge",
     },
-    # VLMs
+    "qwen-14b-instruct": {
+        "class": QwenInstructWrapper,
+        "kwargs": {
+            "model_name": "Qwen/Qwen2.5-14B-Instruct",
+            "model_size": "14B",
+            "quantization": "4bit",
+        },
+        "category": "llm",
+        "tier": "cloud",
+    },
+    # VLMs - Edge tier
     "florence-2-base": {
         "class": Florence2DeliberativeWrapper,
         "kwargs": {
@@ -77,6 +92,7 @@ MODEL_CONFIGS = {
             "model_size": "232M",
         },
         "category": "vlm",
+        "tier": "edge",
     },
     "florence-2-large": {
         "class": Florence2DeliberativeWrapper,
@@ -85,6 +101,7 @@ MODEL_CONFIGS = {
             "model_size": "770M",
         },
         "category": "vlm",
+        "tier": "edge",
     },
     "qwen2-vl-3b": {
         "class": Qwen2VLDeliberativeWrapper,
@@ -94,6 +111,7 @@ MODEL_CONFIGS = {
             "quantization": "4bit",
         },
         "category": "vlm",
+        "tier": "edge",
     },
     "qwen2-vl-7b": {
         "class": Qwen2VLDeliberativeWrapper,
@@ -103,8 +121,14 @@ MODEL_CONFIGS = {
             "quantization": "4bit",
         },
         "category": "vlm",
+        "tier": "edge",
     },
 }
+
+# Condition configurations
+ALL_CONDITIONS = ["text_dump", "query_interface", "query_constrained", "query_verify_first"]
+BASELINE_CONDITIONS = ["text_dump", "query_interface"]
+CONSTRAINED_CONDITIONS = ["query_constrained", "query_verify_first"]
 
 # Default configurations
 DEFAULT_MODELS = ["claude-sonnet"]
@@ -187,17 +211,25 @@ def run_query_interface_trial(
     model_category: str,
     scenario_name: str,
     scenario,
+    condition: str = "query_interface",
     image=None,
     run_idx: int = 0,
 ) -> TrialResult:
-    """Run a single query interface condition trial."""
+    """Run a single query interface condition trial.
+
+    Args:
+        condition: One of "query_interface", "query_constrained", "query_verify_first"
+    """
     # Create tool executor
     toolkit = SceneToolkit(scenario)
 
-    # Format prompts
-    prompts = create_query_interface_prompt(scenario, use_react=False)
+    # Format prompts based on condition
+    prompts = create_query_interface_prompt(scenario, use_react=False, condition=condition)
     system_prompt = prompts["system"]
     user_prompt = prompts["user"]
+
+    # Use extended tools for verify_first condition
+    tools = CLAUDE_TOOLS_EXTENDED if condition == "query_verify_first" else CLAUDE_TOOLS
 
     # Run model
     start_time = time.time()
@@ -205,7 +237,7 @@ def run_query_interface_trial(
         response = model.run_query_interface(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            tools=CLAUDE_TOOLS,
+            tools=tools,
             tool_executor=toolkit,
             image=image if model_category == "vlm" else None,
             temperature=TEMPERATURE,
@@ -235,7 +267,7 @@ def run_query_interface_trial(
         scenario_name=scenario_name,
         model_name=model_name,
         model_category=model_category,
-        condition="query_interface",
+        condition=condition,
         toolkit=toolkit,
     )
 
@@ -245,6 +277,7 @@ def run_query_interface_trial(
 def run_experiment(
     models: List[str],
     scenarios: List[str],
+    conditions: List[str] = None,
     runs_per_condition: int = RUNS_PER_CONDITION,
     output_dir: str = "results/deliberative",
     verbose: bool = True,
@@ -255,6 +288,7 @@ def run_experiment(
     Args:
         models: List of model names to test
         scenarios: List of scenario names to test
+        conditions: List of conditions to test (default: BASELINE_CONDITIONS)
         runs_per_condition: Number of runs per (model, condition, scenario)
         output_dir: Directory to save results
         verbose: Print progress
@@ -262,6 +296,9 @@ def run_experiment(
     Returns:
         List of all trial results
     """
+    if conditions is None:
+        conditions = BASELINE_CONDITIONS
+
     all_results = []
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -277,7 +314,7 @@ def run_experiment(
                 scenario_name, scenario.objects
             )
 
-    total_trials = len(models) * len(scenarios) * 2 * runs_per_condition
+    total_trials = len(models) * len(scenarios) * len(conditions) * runs_per_condition
     trial_count = 0
 
     for model_name in models:
@@ -300,7 +337,7 @@ def run_experiment(
             scenario = SCENARIOS[scenario_name]
             image = scenario_images.get(scenario_name)
 
-            for condition in ["text_dump", "query_interface"]:
+            for condition in conditions:
                 for run_idx in range(runs_per_condition):
                     trial_count += 1
                     if verbose:
@@ -327,6 +364,7 @@ def run_experiment(
                                 model_category=model_category,
                                 scenario_name=scenario_name,
                                 scenario=scenario,
+                                condition=condition,
                                 image=image,
                                 run_idx=run_idx,
                             )
@@ -337,6 +375,10 @@ def run_experiment(
                             print(f"  Hallucination: {result.hallucination_detected}")
                             print(f"  Correct: {result.correct_action}")
                             print(f"  Schema valid: {result.schema_valid}")
+                            print(f"  Confidence: {result.output_stated_confidence:.2f}")
+                            if result.uncertainty_metrics:
+                                print(f"  Conf delta: {result.uncertainty_metrics.confidence_delta:+.2f}")
+                                print(f"  Violation: {result.uncertainty_metrics.uncertainty_violation}")
                             print(f"  Time: {result.inference_time_ms:.0f}ms")
                             if result.error:
                                 print(f"  Error: {result.error}")
@@ -409,6 +451,13 @@ def main():
         action="store_true",
         help="List available scenarios and exit",
     )
+    parser.add_argument(
+        "--conditions",
+        nargs="+",
+        default=None,
+        choices=ALL_CONDITIONS + ["all", "baseline", "constrained"],
+        help="Conditions to test. Use 'all', 'baseline', 'constrained', or specific condition names",
+    )
 
     args = parser.parse_args()
 
@@ -433,10 +482,23 @@ def main():
         models = args.models or DEFAULT_MODELS
         scenarios = args.scenarios or DEFAULT_SCENARIOS
 
+    # Determine conditions
+    if args.conditions is None:
+        conditions = BASELINE_CONDITIONS
+    elif "all" in args.conditions:
+        conditions = ALL_CONDITIONS
+    elif "baseline" in args.conditions:
+        conditions = BASELINE_CONDITIONS
+    elif "constrained" in args.conditions:
+        conditions = CONSTRAINED_CONDITIONS
+    else:
+        conditions = args.conditions
+
     print(f"Deliberative Layer Experiment")
     print(f"==============================")
     print(f"Models: {models}")
     print(f"Scenarios: {scenarios}")
+    print(f"Conditions: {conditions}")
     print(f"Runs per condition: {args.runs}")
     print(f"Output directory: {args.output_dir}")
     print()
@@ -453,6 +515,7 @@ def main():
     results = run_experiment(
         models=models,
         scenarios=scenarios,
+        conditions=conditions,
         runs_per_condition=args.runs,
         output_dir=args.output_dir,
         verbose=not args.quiet,

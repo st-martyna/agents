@@ -64,10 +64,12 @@ def generate_markdown_report(
 
     # Group by model
     by_model = {}
+    all_conditions = ["text_dump", "query_interface", "query_constrained", "query_verify_first"]
     for r in results:
         if r.model not in by_model:
-            by_model[r.model] = {"text_dump": [], "query_interface": []}
-        by_model[r.model][r.condition].append(r)
+            by_model[r.model] = {c: [] for c in all_conditions}
+        if r.condition in by_model[r.model]:
+            by_model[r.model][r.condition].append(r)
 
     # Build report
     report = f"""# Deliberative Layer Experiment Report
