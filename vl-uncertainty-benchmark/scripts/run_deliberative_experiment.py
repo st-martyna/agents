@@ -137,7 +137,7 @@ def run_text_dump_trial(
 ) -> TrialResult:
     """Run a single text dump condition trial."""
     # Create tool executor for evaluation
-    toolkit = SceneToolkit(scenario.objects)
+    toolkit = SceneToolkit(scenario)
 
     # Format prompt
     prompt = create_text_dump_prompt(scenario)
@@ -192,7 +192,7 @@ def run_query_interface_trial(
 ) -> TrialResult:
     """Run a single query interface condition trial."""
     # Create tool executor
-    toolkit = SceneToolkit(scenario.objects)
+    toolkit = SceneToolkit(scenario)
 
     # Format prompts
     prompts = create_query_interface_prompt(scenario, use_react=False)
