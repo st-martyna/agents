@@ -191,9 +191,9 @@ class ClaudeWrapper(DeliberativeModelWrapper):
             )
 
 
-class QwenInstructWrapper(DeliberativeModelWrapper):
+class LocalLLMWrapper(DeliberativeModelWrapper):
     """
-    Wrapper for Qwen2.5-Instruct models (local, quantized).
+    Base wrapper for local LLM models (quantized).
 
     Uses ReAct-style prompting for tool calling since local models
     may not support native tool use.
@@ -201,20 +201,11 @@ class QwenInstructWrapper(DeliberativeModelWrapper):
 
     def __init__(
         self,
-        model_name: str = "Qwen/Qwen2.5-7B-Instruct",
+        model_name: str,
         model_size: str = "7B",
         quantization: str = "4bit",
         device: Optional[str] = None
     ):
-        """
-        Initialize Qwen wrapper.
-
-        Args:
-            model_name: HuggingFace model ID
-            model_size: Size descriptor
-            quantization: Quantization method ('4bit', '8bit', 'none')
-            device: Device to run on
-        """
         super().__init__(
             model_name=model_name,
             model_category="llm",
@@ -225,7 +216,7 @@ class QwenInstructWrapper(DeliberativeModelWrapper):
         self._tokenizer = None
 
     def load(self) -> None:
-        """Load Qwen model with quantization."""
+        """Load model with quantization."""
         try:
             from transformers import AutoModelForCausalLM, AutoTokenizer
         except ImportError:
@@ -233,7 +224,6 @@ class QwenInstructWrapper(DeliberativeModelWrapper):
 
         import torch
 
-        # Set up quantization
         model_kwargs = {
             "torch_dtype": torch.float16,
             "device_map": "auto",
@@ -284,7 +274,6 @@ class QwenInstructWrapper(DeliberativeModelWrapper):
                 pad_token_id=self._tokenizer.eos_token_id
             )
 
-        # Decode only new tokens
         new_tokens = outputs[0][inputs["input_ids"].shape[1]:]
         return self._tokenizer.decode(new_tokens, skip_special_tokens=True)
 
@@ -295,13 +284,12 @@ class QwenInstructWrapper(DeliberativeModelWrapper):
         temperature: float = 0.0,
         max_tokens: int = 2048
     ) -> ModelResponse:
-        """Run Qwen with text dump prompt."""
+        """Run with text dump prompt."""
         self.ensure_loaded()
 
         start_time = time.time()
 
         try:
-            # Format as chat
             messages = [{"role": "user", "content": prompt}]
             formatted = self._tokenizer.apply_chat_template(
                 messages,
@@ -317,7 +305,7 @@ class QwenInstructWrapper(DeliberativeModelWrapper):
                 parsed_json=parse_json_response(raw_text),
                 tool_calls=[],
                 inference_time_ms=inference_time,
-                total_tokens=0  # Would need to count
+                total_tokens=0
             )
 
         except Exception as e:
@@ -341,14 +329,13 @@ class QwenInstructWrapper(DeliberativeModelWrapper):
         max_tokens: int = 2048,
         max_tool_calls: int = 20
     ) -> ModelResponse:
-        """Run Qwen with ReAct-style tool calling."""
+        """Run with ReAct-style tool calling."""
         self.ensure_loaded()
 
         start_time = time.time()
         all_tool_calls = []
 
         try:
-            # Build ReAct prompt
             messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
@@ -361,21 +348,17 @@ class QwenInstructWrapper(DeliberativeModelWrapper):
 
             full_response = formatted
 
-            # ReAct loop
             for _ in range(max_tool_calls):
                 response_text = self._generate(full_response, temperature, max_tokens)
                 full_response += response_text
 
-                # Check for Action:
                 action_match = re.search(r'Action:\s*(\w+)\((.*?)\)', response_text)
                 if not action_match:
-                    # No more actions, done
                     break
 
                 tool_name = action_match.group(1)
                 args_str = action_match.group(2)
 
-                # Parse arguments
                 from ..tools import parse_react_tool_call
                 _, args = parse_react_tool_call(f"{tool_name}({args_str})")
 
@@ -384,7 +367,6 @@ class QwenInstructWrapper(DeliberativeModelWrapper):
                     "arguments": args
                 })
 
-                # Execute tool
                 try:
                     result = tool_executor.execute_tool(tool_name, args)
                     observation = json.dumps(result) if result is not None else "null"
@@ -395,7 +377,6 @@ class QwenInstructWrapper(DeliberativeModelWrapper):
 
             inference_time = (time.time() - start_time) * 1000
 
-            # Extract final answer
             final_match = re.search(r'Final Answer:\s*(\{[\s\S]*\})', full_response)
             if final_match:
                 raw_text = final_match.group(0)
@@ -419,3 +400,188 @@ class QwenInstructWrapper(DeliberativeModelWrapper):
                 total_tokens=0,
                 error=str(e)
             )
+
+
+class QwenInstructWrapper(LocalLLMWrapper):
+    """Wrapper for Qwen2.5-Instruct models."""
+
+    def __init__(
+        self,
+        model_name: str = "Qwen/Qwen2.5-7B-Instruct",
+        model_size: str = "7B",
+        quantization: str = "4bit",
+        device: Optional[str] = None
+    ):
+        super().__init__(
+            model_name=model_name,
+            model_size=model_size,
+            quantization=quantization,
+            device=device
+        )
+
+
+class LlamaInstructWrapper(LocalLLMWrapper):
+    """Wrapper for Llama-3.x-Instruct models."""
+
+    def __init__(
+        self,
+        model_name: str = "meta-llama/Llama-3.1-8B-Instruct",
+        model_size: str = "8B",
+        quantization: str = "4bit",
+        device: Optional[str] = None
+    ):
+        super().__init__(
+            model_name=model_name,
+            model_size=model_size,
+            quantization=quantization,
+            device=device
+        )
+
+
+class GemmaInstructWrapper(LocalLLMWrapper):
+    """Wrapper for Gemma-2-Instruct models."""
+
+    def __init__(
+        self,
+        model_name: str = "google/gemma-2-9b-it",
+        model_size: str = "9B",
+        quantization: str = "4bit",
+        device: Optional[str] = None
+    ):
+        super().__init__(
+            model_name=model_name,
+            model_size=model_size,
+            quantization=quantization,
+            device=device
+        )
+
+
+class Phi4Wrapper(LocalLLMWrapper):
+    """Wrapper for Microsoft Phi-4 models."""
+
+    def __init__(
+        self,
+        model_name: str = "microsoft/phi-4",
+        model_size: str = "14B",
+        quantization: str = "4bit",
+        device: Optional[str] = None
+    ):
+        super().__init__(
+            model_name=model_name,
+            model_size=model_size,
+            quantization=quantization,
+            device=device
+        )
+
+
+class MistralInstructWrapper(LocalLLMWrapper):
+    """Wrapper for Mistral-Instruct models."""
+
+    def __init__(
+        self,
+        model_name: str = "mistralai/Mistral-7B-Instruct-v0.3",
+        model_size: str = "7B",
+        quantization: str = "4bit",
+        device: Optional[str] = None
+    ):
+        super().__init__(
+            model_name=model_name,
+            model_size=model_size,
+            quantization=quantization,
+            device=device
+        )
+
+
+class DeepSeekWrapper(LocalLLMWrapper):
+    """Wrapper for DeepSeek-V3 models."""
+
+    def __init__(
+        self,
+        model_name: str = "deepseek-ai/DeepSeek-V3",
+        model_size: str = "671B",
+        quantization: str = "4bit",
+        device: Optional[str] = None
+    ):
+        super().__init__(
+            model_name=model_name,
+            model_size=model_size,
+            quantization=quantization,
+            device=device
+        )
+
+
+# Factory function to create LLM wrappers
+def create_llm_wrapper(
+    model_name: str,
+    model_size: str = "7B",
+    device: Optional[str] = None,
+    quantization: str = "4bit",
+    api_key: Optional[str] = None
+) -> DeliberativeModelWrapper:
+    """
+    Create an LLM wrapper by model name.
+
+    Args:
+        model_name: Model identifier
+        model_size: Size descriptor
+        device: Device to run on
+        quantization: Quantization method
+        api_key: API key for API-based models
+
+    Returns:
+        Appropriate LLM wrapper
+    """
+    model_lower = model_name.lower()
+
+    if "claude" in model_lower:
+        return ClaudeWrapper(model_name=model_name, api_key=api_key)
+    elif "qwen" in model_lower and "vl" not in model_lower:
+        return QwenInstructWrapper(
+            model_name=model_name,
+            model_size=model_size,
+            quantization=quantization,
+            device=device
+        )
+    elif "llama" in model_lower and "vision" not in model_lower:
+        return LlamaInstructWrapper(
+            model_name=model_name,
+            model_size=model_size,
+            quantization=quantization,
+            device=device
+        )
+    elif "gemma" in model_lower:
+        return GemmaInstructWrapper(
+            model_name=model_name,
+            model_size=model_size,
+            quantization=quantization,
+            device=device
+        )
+    elif "phi" in model_lower:
+        return Phi4Wrapper(
+            model_name=model_name,
+            model_size=model_size,
+            quantization=quantization,
+            device=device
+        )
+    elif "mistral" in model_lower:
+        return MistralInstructWrapper(
+            model_name=model_name,
+            model_size=model_size,
+            quantization=quantization,
+            device=device
+        )
+    elif "deepseek" in model_lower:
+        return DeepSeekWrapper(
+            model_name=model_name,
+            model_size=model_size,
+            quantization=quantization,
+            device=device
+        )
+    else:
+        # Default to LocalLLMWrapper
+        return LocalLLMWrapper(
+            model_name=model_name,
+            model_size=model_size,
+            quantization=quantization,
+            device=device
+        )

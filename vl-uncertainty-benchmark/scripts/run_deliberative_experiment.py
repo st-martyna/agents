@@ -39,36 +39,62 @@ from src.deliberative import (
 from src.deliberative.models import (
     ClaudeWrapper,
     QwenInstructWrapper,
+    LlamaInstructWrapper,
+    GemmaInstructWrapper,
+    Phi4Wrapper,
+    MistralInstructWrapper,
+    DeepSeekWrapper,
     Florence2DeliberativeWrapper,
     Qwen2VLDeliberativeWrapper,
+    LlamaVisionWrapper,
+    PixtralWrapper,
+    Idefics3Wrapper,
     create_vlm_wrapper,
 )
 
 
 # Model configurations
 MODEL_CONFIGS = {
-    # LLMs
+    # ========================================
+    # LLMs - API tier
+    # ========================================
     "claude-sonnet": {
         "class": ClaudeWrapper,
         "kwargs": {"model_name": "claude-sonnet-4-20250514"},
         "category": "llm",
-        "tier": "cloud",
+        "tier": "api",
+    },
+    "claude-opus": {
+        "class": ClaudeWrapper,
+        "kwargs": {"model_name": "claude-opus-4-20250514"},
+        "category": "llm",
+        "tier": "api",
+    },
+    "claude-haiku": {
+        "class": ClaudeWrapper,
+        "kwargs": {"model_name": "claude-3-5-haiku-20241022"},
+        "category": "llm",
+        "tier": "api",
+    },
+
+    # ========================================
+    # LLMs - Qwen family
+    # ========================================
+    "qwen-3b-instruct": {
+        "class": QwenInstructWrapper,
+        "kwargs": {
+            "model_name": "Qwen/Qwen2.5-3B-Instruct",
+            "model_size": "3B",
+            "quantization": "4bit",
+        },
+        "category": "llm",
+        "tier": "edge",
     },
     "qwen-7b-instruct": {
         "class": QwenInstructWrapper,
         "kwargs": {
             "model_name": "Qwen/Qwen2.5-7B-Instruct",
             "model_size": "7B",
-            "quantization": "4bit",
-        },
-        "category": "llm",
-        "tier": "edge",
-    },
-    "qwen-3b-instruct": {
-        "class": QwenInstructWrapper,
-        "kwargs": {
-            "model_name": "Qwen/Qwen2.5-3B-Instruct",
-            "model_size": "3B",
             "quantization": "4bit",
         },
         "category": "llm",
@@ -84,7 +110,170 @@ MODEL_CONFIGS = {
         "category": "llm",
         "tier": "cloud",
     },
-    # VLMs - Edge tier
+    "qwen-72b-instruct": {
+        "class": QwenInstructWrapper,
+        "kwargs": {
+            "model_name": "Qwen/Qwen2.5-72B-Instruct",
+            "model_size": "72B",
+            "quantization": "4bit",
+        },
+        "category": "llm",
+        "tier": "cloud",
+    },
+
+    # ========================================
+    # LLMs - Llama family
+    # ========================================
+    "llama-3.1-8b-instruct": {
+        "class": LlamaInstructWrapper,
+        "kwargs": {
+            "model_name": "meta-llama/Llama-3.1-8B-Instruct",
+            "model_size": "8B",
+            "quantization": "4bit",
+        },
+        "category": "llm",
+        "tier": "edge",
+    },
+    "llama-3.1-70b-instruct": {
+        "class": LlamaInstructWrapper,
+        "kwargs": {
+            "model_name": "meta-llama/Llama-3.1-70B-Instruct",
+            "model_size": "70B",
+            "quantization": "4bit",
+        },
+        "category": "llm",
+        "tier": "cloud",
+    },
+    "llama-3.3-70b-instruct": {
+        "class": LlamaInstructWrapper,
+        "kwargs": {
+            "model_name": "meta-llama/Llama-3.3-70B-Instruct",
+            "model_size": "70B",
+            "quantization": "4bit",
+        },
+        "category": "llm",
+        "tier": "cloud",
+    },
+
+    # ========================================
+    # LLMs - Gemma family
+    # ========================================
+    "gemma-2-2b-it": {
+        "class": GemmaInstructWrapper,
+        "kwargs": {
+            "model_name": "google/gemma-2-2b-it",
+            "model_size": "2B",
+            "quantization": "4bit",
+        },
+        "category": "llm",
+        "tier": "edge",
+    },
+    "gemma-2-9b-it": {
+        "class": GemmaInstructWrapper,
+        "kwargs": {
+            "model_name": "google/gemma-2-9b-it",
+            "model_size": "9B",
+            "quantization": "4bit",
+        },
+        "category": "llm",
+        "tier": "edge",
+    },
+    "gemma-2-27b-it": {
+        "class": GemmaInstructWrapper,
+        "kwargs": {
+            "model_name": "google/gemma-2-27b-it",
+            "model_size": "27B",
+            "quantization": "4bit",
+        },
+        "category": "llm",
+        "tier": "cloud",
+    },
+
+    # ========================================
+    # LLMs - Phi family
+    # ========================================
+    "phi-4": {
+        "class": Phi4Wrapper,
+        "kwargs": {
+            "model_name": "microsoft/phi-4",
+            "model_size": "14B",
+            "quantization": "4bit",
+        },
+        "category": "llm",
+        "tier": "edge",
+    },
+
+    # ========================================
+    # LLMs - Mistral family
+    # ========================================
+    "mistral-7b-instruct-v0.3": {
+        "class": MistralInstructWrapper,
+        "kwargs": {
+            "model_name": "mistralai/Mistral-7B-Instruct-v0.3",
+            "model_size": "7B",
+            "quantization": "4bit",
+        },
+        "category": "llm",
+        "tier": "edge",
+    },
+    "mistral-nemo-instruct": {
+        "class": MistralInstructWrapper,
+        "kwargs": {
+            "model_name": "mistralai/Mistral-Nemo-Instruct-2407",
+            "model_size": "12B",
+            "quantization": "4bit",
+        },
+        "category": "llm",
+        "tier": "edge",
+    },
+    "mixtral-8x7b-instruct": {
+        "class": MistralInstructWrapper,
+        "kwargs": {
+            "model_name": "mistralai/Mixtral-8x7B-Instruct-v0.1",
+            "model_size": "47B",
+            "quantization": "4bit",
+        },
+        "category": "llm",
+        "tier": "cloud",
+    },
+
+    # ========================================
+    # LLMs - DeepSeek family
+    # ========================================
+    "deepseek-r1-distill-qwen-7b": {
+        "class": DeepSeekWrapper,
+        "kwargs": {
+            "model_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+            "model_size": "7B",
+            "quantization": "4bit",
+        },
+        "category": "llm",
+        "tier": "edge",
+    },
+    "deepseek-r1-distill-llama-8b": {
+        "class": DeepSeekWrapper,
+        "kwargs": {
+            "model_name": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
+            "model_size": "8B",
+            "quantization": "4bit",
+        },
+        "category": "llm",
+        "tier": "edge",
+    },
+    "deepseek-r1-distill-qwen-32b": {
+        "class": DeepSeekWrapper,
+        "kwargs": {
+            "model_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
+            "model_size": "32B",
+            "quantization": "4bit",
+        },
+        "category": "llm",
+        "tier": "cloud",
+    },
+
+    # ========================================
+    # VLMs - Florence family
+    # ========================================
     "florence-2-base": {
         "class": Florence2DeliberativeWrapper,
         "kwargs": {
@@ -103,7 +292,31 @@ MODEL_CONFIGS = {
         "category": "vlm",
         "tier": "edge",
     },
-    "qwen2-vl-3b": {
+
+    # ========================================
+    # VLMs - Qwen-VL family
+    # ========================================
+    "qwen2-vl-2b": {
+        "class": Qwen2VLDeliberativeWrapper,
+        "kwargs": {
+            "model_name": "Qwen/Qwen2-VL-2B-Instruct",
+            "model_size": "2B",
+            "quantization": "4bit",
+        },
+        "category": "vlm",
+        "tier": "edge",
+    },
+    "qwen2-vl-7b": {
+        "class": Qwen2VLDeliberativeWrapper,
+        "kwargs": {
+            "model_name": "Qwen/Qwen2-VL-7B-Instruct",
+            "model_size": "7B",
+            "quantization": "4bit",
+        },
+        "category": "vlm",
+        "tier": "edge",
+    },
+    "qwen2.5-vl-3b": {
         "class": Qwen2VLDeliberativeWrapper,
         "kwargs": {
             "model_name": "Qwen/Qwen2.5-VL-3B-Instruct",
@@ -113,11 +326,63 @@ MODEL_CONFIGS = {
         "category": "vlm",
         "tier": "edge",
     },
-    "qwen2-vl-7b": {
+    "qwen2.5-vl-7b": {
         "class": Qwen2VLDeliberativeWrapper,
         "kwargs": {
             "model_name": "Qwen/Qwen2.5-VL-7B-Instruct",
             "model_size": "7B",
+            "quantization": "4bit",
+        },
+        "category": "vlm",
+        "tier": "edge",
+    },
+
+    # ========================================
+    # VLMs - Llama Vision family
+    # ========================================
+    "llama-3.2-11b-vision": {
+        "class": LlamaVisionWrapper,
+        "kwargs": {
+            "model_name": "meta-llama/Llama-3.2-11B-Vision-Instruct",
+            "model_size": "11B",
+            "quantization": "4bit",
+        },
+        "category": "vlm",
+        "tier": "edge",
+    },
+    "llama-3.2-90b-vision": {
+        "class": LlamaVisionWrapper,
+        "kwargs": {
+            "model_name": "meta-llama/Llama-3.2-90B-Vision-Instruct",
+            "model_size": "90B",
+            "quantization": "4bit",
+        },
+        "category": "vlm",
+        "tier": "cloud",
+    },
+
+    # ========================================
+    # VLMs - Pixtral family
+    # ========================================
+    "pixtral-12b": {
+        "class": PixtralWrapper,
+        "kwargs": {
+            "model_name": "mistralai/Pixtral-12B-2409",
+            "model_size": "12B",
+            "quantization": "4bit",
+        },
+        "category": "vlm",
+        "tier": "edge",
+    },
+
+    # ========================================
+    # VLMs - Idefics3 family
+    # ========================================
+    "idefics3-8b-llama3": {
+        "class": Idefics3Wrapper,
+        "kwargs": {
+            "model_name": "HuggingFaceM4/Idefics3-8B-Llama3",
+            "model_size": "8B",
             "quantization": "4bit",
         },
         "category": "vlm",
