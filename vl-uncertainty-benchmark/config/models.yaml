@@ -1,0 +1,335 @@
+# Model configurations for VL-Uncertainty-Benchmark
+# Each model specifies: category, deployment tier, params, uncertainty method, and license
+
+models:
+  # =============================================================================
+  # DETECTION MODELS
+  # =============================================================================
+  sam:
+    name: "SAM"
+    full_name: "Segment Anything Model"
+    category: "detection"
+    deployment_tier: "edge"
+    params: 94_000_000
+    uncertainty_method: "iou_prediction"
+    license: "Apache-2.0"
+    model_id: "facebook/sam-vit-base"
+    checkpoint: null  # Will use HF hub
+    notes: "IoU prediction head provides natural confidence score"
+
+  sam2_large:
+    name: "SAM2-Large"
+    full_name: "Segment Anything 2 Large"
+    category: "detection"
+    deployment_tier: "cloud"
+    params: 224_000_000
+    uncertainty_method: "iou_occlusion"
+    license: "Apache-2.0"
+    model_id: "facebook/sam2-hiera-large"
+    checkpoint: null
+    notes: "Uses both IoU and occlusion scores for uncertainty"
+
+  yolo_world_s:
+    name: "YOLO-World-S"
+    full_name: "YOLO-World Small"
+    category: "detection"
+    deployment_tier: "edge"
+    params: 13_000_000
+    uncertainty_method: "detection_confidence"
+    license: "GPL-3.0"
+    model_id: "yolov8s-worldv2"
+    checkpoint: null
+    notes: "objectness * class_probability as confidence"
+
+  yolo_world_x:
+    name: "YOLO-World-X"
+    full_name: "YOLO-World Extra Large"
+    category: "detection"
+    deployment_tier: "cloud"
+    params: 97_000_000
+    uncertainty_method: "detection_confidence"
+    license: "GPL-3.0"
+    model_id: "yolov8x-worldv2"
+    checkpoint: null
+    notes: "Largest YOLO-World variant"
+
+  # =============================================================================
+  # SELF-SUPERVISED MODELS
+  # =============================================================================
+  dinov2_b:
+    name: "DINOv2-B"
+    full_name: "DINOv2 Base"
+    category: "self_supervised"
+    deployment_tier: "edge"
+    params: 86_000_000
+    uncertainty_method: "embedding_distance"
+    license: "Apache-2.0"
+    model_id: "facebook/dinov2-base"
+    checkpoint: null
+    notes: "Embedding distance to class centroids as uncertainty"
+
+  dinov2_g:
+    name: "DINOv2-g"
+    full_name: "DINOv2 Giant"
+    category: "self_supervised"
+    deployment_tier: "cloud"
+    params: 1_100_000_000
+    uncertainty_method: "embedding_distance"
+    license: "Apache-2.0"
+    model_id: "facebook/dinov2-giant"
+    checkpoint: null
+    notes: "Largest DINOv2 variant"
+
+  vjepa2:
+    name: "V-JEPA2"
+    full_name: "Video Joint-Embedding Predictive Architecture 2"
+    category: "self_supervised"
+    deployment_tier: "cloud"
+    params: 1_200_000_000
+    uncertainty_method: "latent_variance"
+    license: "MIT"
+    model_id: "facebook/vjepa2"
+    checkpoint: null
+    notes: "Latent prediction variance across masked regions"
+
+  # =============================================================================
+  # VISION-LANGUAGE MODELS (VLMs)
+  # =============================================================================
+  florence2_base:
+    name: "Florence-2-base"
+    full_name: "Florence 2 Base"
+    category: "vlm"
+    deployment_tier: "edge"
+    params: 232_000_000
+    uncertainty_method: "token_entropy"
+    license: "MIT"
+    model_id: "microsoft/Florence-2-base"
+    checkpoint: null
+    notes: "Token entropy via output_scores"
+
+  florence2_large:
+    name: "Florence-2-large"
+    full_name: "Florence 2 Large"
+    category: "vlm"
+    deployment_tier: "cloud"
+    params: 770_000_000
+    uncertainty_method: "token_entropy"
+    license: "MIT"
+    model_id: "microsoft/Florence-2-large"
+    checkpoint: null
+    notes: "Larger Florence variant"
+
+  paligemma2_3b:
+    name: "PaliGemma2-3B"
+    full_name: "PaliGemma 2 3B"
+    category: "vlm"
+    deployment_tier: "edge"
+    params: 3_000_000_000
+    uncertainty_method: "location_confidence"
+    license: "Gemma"
+    model_id: "google/paligemma2-3b-pt-224"
+    checkpoint: null
+    notes: "Location token confidence for object detection tasks"
+
+  paligemma2_28b:
+    name: "PaliGemma2-28B"
+    full_name: "PaliGemma 2 28B"
+    category: "vlm"
+    deployment_tier: "cloud"
+    params: 28_000_000_000
+    uncertainty_method: "location_confidence"
+    license: "Gemma"
+    model_id: "google/paligemma2-28b-pt-448"
+    checkpoint: null
+    notes: "Largest PaliGemma variant"
+
+  qwen25vl_3b:
+    name: "Qwen2.5-VL-3B"
+    full_name: "Qwen 2.5 Vision-Language 3B"
+    category: "vlm"
+    deployment_tier: "edge"
+    params: 3_000_000_000
+    uncertainty_method: "token_entropy"
+    license: "Apache-2.0"
+    model_id: "Qwen/Qwen2.5-VL-3B-Instruct"
+    checkpoint: null
+    quantization: "4bit"
+    notes: "4-bit quantized for edge deployment"
+
+  qwen25vl_72b:
+    name: "Qwen2.5-VL-72B"
+    full_name: "Qwen 2.5 Vision-Language 72B"
+    category: "vlm"
+    deployment_tier: "cloud"
+    params: 72_000_000_000
+    uncertainty_method: "token_entropy"
+    license: "Apache-2.0"
+    model_id: "Qwen/Qwen2.5-VL-72B-Instruct"
+    checkpoint: null
+    notes: "Largest Qwen VL model"
+
+  llava_onevision_05b:
+    name: "LLaVA-OneVision-0.5B"
+    full_name: "LLaVA OneVision 0.5B"
+    category: "vlm"
+    deployment_tier: "edge"
+    params: 500_000_000
+    uncertainty_method: "token_entropy"
+    license: "Apache-2.0"
+    model_id: "lmms-lab/llava-onevision-qwen2-0.5b-ov"
+    checkpoint: null
+    notes: "Smallest LLaVA-OneVision for edge"
+
+  llava_onevision_72b:
+    name: "LLaVA-OneVision-72B"
+    full_name: "LLaVA OneVision 72B"
+    category: "vlm"
+    deployment_tier: "cloud"
+    params: 72_000_000_000
+    uncertainty_method: "token_entropy"
+    license: "Apache-2.0"
+    model_id: "lmms-lab/llava-onevision-qwen2-72b-ov"
+    checkpoint: null
+    notes: "Largest LLaVA-OneVision model"
+
+  internvl25_78b:
+    name: "InternVL2.5-78B"
+    full_name: "InternVL 2.5 78B"
+    category: "vlm"
+    deployment_tier: "cloud"
+    params: 78_000_000_000
+    uncertainty_method: "token_entropy"
+    license: "Apache-2.0"
+    model_id: "OpenGVLab/InternVL2_5-78B"
+    checkpoint: null
+    notes: "Highest benchmark scores among open VLMs"
+
+  # =============================================================================
+  # VISION-LANGUAGE-ACTION MODELS (VLAs)
+  # =============================================================================
+  octo_small:
+    name: "Octo-Small"
+    full_name: "Octo Small"
+    category: "vla"
+    deployment_tier: "edge"
+    params: 27_000_000
+    uncertainty_method: "diffusion_variance"
+    license: "Open"
+    model_id: "hf-octo/octo-small-1.5"
+    checkpoint: null
+    n_action_samples: 10
+    notes: "Sample 10 trajectories, compute variance"
+
+  octo_base:
+    name: "Octo-Base"
+    full_name: "Octo Base"
+    category: "vla"
+    deployment_tier: "cloud"
+    params: 93_000_000
+    uncertainty_method: "diffusion_variance"
+    license: "Open"
+    model_id: "hf-octo/octo-base-1.5"
+    checkpoint: null
+    n_action_samples: 10
+    notes: "Larger Octo model"
+
+  smolvla:
+    name: "SmolVLA"
+    full_name: "SmolVLA"
+    category: "vla"
+    deployment_tier: "edge"
+    params: 450_000_000
+    uncertainty_method: "flow_variance"
+    license: "Open"
+    model_id: "HuggingFaceM4/smolvla-base"
+    checkpoint: null
+    n_action_samples: 10
+    notes: "Flow matching variance for uncertainty"
+
+  openvla:
+    name: "OpenVLA"
+    full_name: "OpenVLA 7B"
+    category: "vla"
+    deployment_tier: "cloud"
+    params: 7_000_000_000
+    uncertainty_method: "token_entropy"
+    license: "Llama"
+    model_id: "openvla/openvla-7b"
+    checkpoint: null
+    notes: "Token entropy from action token predictions"
+
+# =============================================================================
+# DEPLOYMENT TIER SPECIFICATIONS
+# =============================================================================
+deployment_tiers:
+  edge:
+    description: "Jetson Nano 8GB equivalent"
+    max_vram_gb: 8
+    max_params: 500_000_000
+    quantization: "int8"
+    batch_size: 1
+
+  edge_plus:
+    description: "Jetson Orin 64GB equivalent"
+    max_vram_gb: 64
+    max_params: 8_000_000_000
+    quantization: "fp16"
+    batch_size: 4
+
+  cloud:
+    description: "A100/H100 class GPU"
+    max_vram_gb: 80
+    max_params: null  # No limit
+    quantization: "fp16"
+    batch_size: 16
+
+# =============================================================================
+# DEGRADATION CONFIGURATIONS
+# =============================================================================
+degradations:
+  lighting:
+    description: "Gamma correction for lighting changes"
+    severity_levels: [1.0, 0.7, 0.5, 0.3, 0.2]
+
+  gaussian_blur:
+    description: "Gaussian blur kernel size"
+    severity_levels: [3, 5, 9, 13, 15]
+
+  gaussian_noise:
+    description: "Gaussian noise sigma"
+    severity_levels: [0.01, 0.03, 0.07, 0.12, 0.15]
+
+  motion_blur:
+    description: "Motion blur kernel length (pixels)"
+    severity_levels: [5, 10, 15, 20, 25]
+
+  occlusion:
+    description: "Random rectangular patch coverage percentage"
+    severity_levels: [0.05, 0.15, 0.25, 0.35, 0.40]
+
+  jpeg_compression:
+    description: "JPEG quality level"
+    severity_levels: [95, 70, 50, 30, 15]
+
+  pixelation:
+    description: "Downsample factor"
+    severity_levels: [1, 2, 4, 8, 12]
+
+# Common degradation combinations for realistic scenarios
+degradation_combinations:
+  low_light_blur:
+    - ["lighting", 3]
+    - ["gaussian_blur", 2]
+
+  outdoor_harsh:
+    - ["lighting", 4]
+    - ["motion_blur", 2]
+    - ["jpeg_compression", 3]
+
+  sensor_noise:
+    - ["gaussian_noise", 3]
+    - ["jpeg_compression", 2]
+
+  partial_occlusion:
+    - ["occlusion", 2]
+    - ["gaussian_blur", 1]
